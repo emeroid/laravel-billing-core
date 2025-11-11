@@ -1,0 +1,65 @@
+{
+    "name": "emeroid/laravel-billing-core",
+    "description": "A robust, driver-based, multi-gateway billing package for Laravel. Supports Paystack, PayPal, plan swapping, and dunning.",
+    "keywords": [
+        "laravel",
+        "billing",
+        "payment",
+        "paystack",
+        "paypal",
+        "saas",
+        "emeroid"
+    ],
+    "homepage": "https://github.com/emeroid/laravel-billing-core",
+    "type": "laravel-package",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Emeka Michael Mbaegbu",
+            "email": "threalyongbug@gmail.com",
+            "homepage": "https://github.com/emeroid"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "illuminate/support": "^10.0 || ^11.0",
+        "illuminate/database": "^10.0 || ^11.0",
+        "illuminate/routing": "^10.0 || ^11.0",
+        "illuminate/http": "^10.0 || ^11.0",
+        "guzzlehttp/guzzle": "^7.0",
+        "paypal/paypal-checkout-sdk": "^1.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^8.0 || ^9.0",
+        "phpunit/phpunit": "^10.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Emeroid\\Billing\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Emeroid\\Billing\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Emeroid\\Billing\\BillingServiceProvider"
+            ],
+            "aliases": {
+                "Billing": "Emeroid\\Billing\\Facades\\Billing"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
