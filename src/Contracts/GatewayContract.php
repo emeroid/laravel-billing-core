@@ -19,7 +19,7 @@ interface GatewayContract
      * @param string|null $driver
      * @return self
      */
-    public function driver(?string $driver = null): self;
+    public function driver(?string $driver = null);
 
     /**
      * Initiate a one-time purchase.

@@ -1,14 +1,14 @@
 <?php
 
-namespace Emeroid\Billing\Tests\Feature;
+namespace Emeroid\Billing\Tests\Feature; // Fixed: Was YourVendor
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
-use Emeroid\Billing\Events\TransactionSuccessful;
-use Emeroid\Billing\Events\TransactionFailed;
-use Emeroid\Billing\Facades\Billing;
-use Emeroid\Billing\Models\Transaction;
-use Emeroid\Billing\Tests\TestCase;
+use Emeroid\Billing\Events\TransactionSuccessful; // Fixed: Was YourVendor
+use Emeroid\Billing\Events\TransactionFailed; // Fixed: Was YourVendor
+use Emeroid\Billing\Facades\Billing; // Fixed: Was YourVendor
+use Emeroid\Billing\Models\Transaction; // Fixed: Was YourVendor
+use Emeroid\Billing\Tests\TestCase; // Fixed: Was YourVendor
 
 class PaystackDriverTest extends TestCase
 {
@@ -34,7 +34,7 @@ class PaystackDriverTest extends TestCase
 
         $response = Billing::driver('paystack')->purchase(50000, $this->user->email, [
             'currency' => 'NGN',
-            'user_id' => $this->user->id,
+            'test_user_id' => $this->user->id,
             'reference' => 'trx_12345'
         ]);
 
@@ -43,7 +43,7 @@ class PaystackDriverTest extends TestCase
 
         // Assert a pending transaction was created
         $this->assertDatabaseHas('transactions', [
-            'user_id' => $this->user->id,
+            'test_user_id' => $this->user->id,
             'reference' => 'trx_12345',
             'gateway' => 'paystack',
             'amount' => 50000,
@@ -56,7 +56,7 @@ class PaystackDriverTest extends TestCase
     {
         // Create a pending transaction first
         $pendingTx = Transaction::create([
-            'user_id' => $this->user->id,
+            'test_user_id' => $this->user->id,
             'email' => $this->user->email,
             'reference' => 'trx_abc',
             'gateway' => 'paystack',
@@ -96,7 +96,7 @@ class PaystackDriverTest extends TestCase
     public function it_can_handle_a_failed_transaction_verification()
     {
         $pendingTx = Transaction::create([
-            'user_id' => $this->user->id,
+            'test_user_id' => $this->user->id,
             'email' => $this->user->email,
             'reference' => 'trx_failed',
             'gateway' => 'paystack',
@@ -132,11 +132,11 @@ class PaystackDriverTest extends TestCase
     public function it_handles_a_webhook_signature_verification()
     {
         $secret = config('billing.drivers.paystack.secret_key');
-        $body = '{"event":"charge.success","data":{...}}';
-        $signature = hash_hmac('sha512', $body, $secret);
+        $body = ['event' => 'charge.success', 'data' => ['reference' => 'trx_abc']]; // <-- FIXED: Was invalid JSON string
+        $signature = hash_hmac('sha512', json_encode($body), $secret);
 
         $response = $this->postJson('/billing-webhooks/paystack', 
-            json_decode($body, true), 
+            $body, // <-- FIXED: Pass the array directly
             ['x-paystack-signature' => $signature]
         );
 

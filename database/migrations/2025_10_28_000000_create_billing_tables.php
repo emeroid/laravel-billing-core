@@ -54,6 +54,12 @@ return new class extends Migration
             $table->string('gateway'); // 'paystack', 'paypal'
             $table->string('gateway_subscription_id')->unique(); // The ID from Paystack/PayPal
             $table->string('status'); // 'pending', 'active', 'cancelled', 'past_due'
+            
+            // --- V2.0 COLUMNS (Critical for swapping) ---
+            $table->string('customer_code')->nullable()->comment('Gateway-specific customer ID');
+            $table->string('authorization_code')->nullable()->comment('Gateway-specific payment authorization token');
+            // --- END V2.0 COLUMNS ---
+
             $table->timestamp('trial_ends_at')->nullable();
             $table->timestamp('ends_at')->nullable(); // For cancelled subscriptions
             $table->timestamps();

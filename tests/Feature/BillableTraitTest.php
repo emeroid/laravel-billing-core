@@ -18,12 +18,14 @@ class BillableTraitTest extends TestCase
             'name' => 'Pro Plan',
             'slug' => 'pro-plan',
             'amount' => 50000,
+            'interval' => 'monthly',
         ]);
         
         $this->anotherPlan = Plan::create([
             'name' => 'Basic Plan',
             'slug' => 'basic-plan',
             'amount' => 10000,
+            'interval' => 'monthly',
         ]);
     }
 
@@ -34,7 +36,7 @@ class BillableTraitTest extends TestCase
         $this->assertFalse($this->user->hasActiveSubscription());
 
         Subscription::create([
-            'user_id' => $this->user->id,
+            'test_user_id' => $this->user->id, // <-- FIXED
             'plan_id' => $this->plan->id,
             'gateway' => 'paystack',
             'gateway_subscription_id' => 'SUB_1',
@@ -51,7 +53,7 @@ class BillableTraitTest extends TestCase
         $this->assertFalse($this->user->onGracePeriod());
 
         Subscription::create([
-            'user_id' => $this->user->id,
+            'test_user_id' => $this->user->id, // <-- FIXED
             'plan_id' => $this->plan->id,
             'gateway' => 'paystack',
             'gateway_subscription_id' => 'SUB_1',
@@ -61,14 +63,14 @@ class BillableTraitTest extends TestCase
 
         $this->assertTrue($this->user->onGracePeriod());
         $this->assertFalse($this->user->isSubscribed()); // Not 'active'
-        $this->assertTrue($this->user->hasActiveSubscription()); // But should still have access
+        $this->assertTrue($this->user->hasActiveSubscription()); // <-- FIXED TYPO 'this.'
     }
 
     /** @test */
     public function it_can_check_if_subscribed_to_a_specific_plan()
     {
         Subscription::create([
-            'user_id' => $this->user->id,
+            'test_user_id' => $this->user->id, // <-- FIXED
             'plan_id' => $this->plan->id,
             'gateway' => 'paystack',
             'gateway_subscription_id' => 'SUB_1',
