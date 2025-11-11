@@ -1,6 +1,3 @@
-Here’s a clean, well-formatted **Markdown** version of your README file:
-
----
 
 # Laravel Billing Core
 
