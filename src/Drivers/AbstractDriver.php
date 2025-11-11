@@ -19,6 +19,30 @@ abstract class AbstractDriver
         return $modelClass::where('email', $email)->first();
     }
 
+    protected function billableModelClass(): string
+    {
+        return config('billing.model');
+    }
+
+    protected function billableForeignKey(): string
+    {
+        $model = app($this->billableModelClass());
+        return $model->getForeignKey();
+    }
+
+    /**
+     * Given a Transaction instance return the billable model (or null)
+    */
+    protected function getBillableFromTransaction(Transaction $transaction)
+    {
+        $fk = $this->billableForeignKey();
+        $id = $transaction->{$fk} ?? null;
+        if (!$id) {
+            return null;
+        }
+        return app($this->billableModelClass())->find($id);
+    }
+
     protected function createPendingTransaction(
         string $reference,
         int $amount,
@@ -33,8 +57,8 @@ abstract class AbstractDriver
             $userId = $user->id ?? null;
         }
 
-        return Transaction::create([
-            'user_id' => $userId,
+        $transaction = [
+            $this->billableForeignKey() => $userId,
             'reference' => $reference,
             'gateway' => $gateway,
             'amount' => $amount,
@@ -42,6 +66,8 @@ abstract class AbstractDriver
             'email' => $email,
             'currency' => $currency,
             'gateway_plan_id' => $planId,
-        ]);
+        ];
+
+        return Transaction::create($transaction);
     }
 }

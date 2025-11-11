@@ -58,7 +58,7 @@ class PaystackDriver extends AbstractDriver implements GatewayContract
             $amount,
             $email,
             'paystack',
-            $options['user_id'] ?? null,
+            $options[$this->billableForeignKey()] ?? null,
             $options['currency'] ?? 'NGN'
         );
 
@@ -86,12 +86,15 @@ class PaystackDriver extends AbstractDriver implements GatewayContract
             throw new PaymentInitializationFailedException('Paystack (Subscription): ' . ($data['message'] ?? 'Unknown error'));
         }
 
+        $billableModel = app(config('billing.model'));
+        $billableForeignKey = $billableModel->getForeignKey();
+
         $this->createPendingTransaction(
             $reference,
             $options['amount'],
             $email,
             'paystack',
-            $options['user_id'] ?? null,
+            $options[$billableForeignKey] ?? null,
             $options['currency'] ?? 'NGN',
             $planId
         );
@@ -124,7 +127,7 @@ class PaystackDriver extends AbstractDriver implements GatewayContract
             $transaction->gateway_response = $txData;
             $transaction->paid_at = now();
             
-            if ($txData['plan'] && $transaction->user_id) {
+            if ($txData['plan'] && $transaction->{$this->billableForeignKey()}) {
                 $subscription = $this->findOrCreateSubscription($txData, $transaction);
                 event(new SubscriptionStarted($subscription));
             }
@@ -141,22 +144,87 @@ class PaystackDriver extends AbstractDriver implements GatewayContract
         return $transaction;
     }
 
+    // public function handleWebhook(Request $request)
+    // {
+    //     $this->verifyWebhookSignature($request);
+
+    //     $event = $request->input('event');
+    //     $data = $request->input('data');
+
+    //     try {
+    //         switch ($event) {
+    //             case 'charge.success':
+    //                 $transaction = $this->verifyTransaction($data['reference']);
+    //                 if ($data['plan'] && $transaction->{$this->billableForeignKey()}) {
+    //                     $this->findOrCreateSubscription($data, $transaction);
+    //                 }
+    //                 break;
+                
+    //             case 'subscription.create':
+    //                 $subscription = $this->findOrCreateSubscription($data, null);
+    //                 event(new SubscriptionStarted($subscription));
+    //                 break;
+
+    //             case 'subscription.disable':
+    //                 $subscription = Subscription::where('gateway_subscription_id', $data['subscription_code'])->first();
+    //                 if ($subscription) {
+    //                     $subscription->status = 'cancelled';
+    //                     $subscription->save();
+    //                     event(new SubscriptionCancelled($subscription));
+    //                 }
+    //                 break;
+                
+    //             case 'invoice.payment_failed':
+    //                 $subscriptionCode = $data['subscription']['subscription_code'] ?? null;
+    //                 if ($subscriptionCode) {
+    //                     $subscription = Subscription::where('gateway_subscription_id', $subscriptionCode)->first();
+    //                     if ($subscription) {
+    //                         $subscription->status = 'past_due';
+    //                         $subscription->save();
+    //                         event(new SubscriptionPaymentFailed($subscription));
+    //                     }
+    //                 }
+    //                 break;
+    //         }
+    //     } catch (\Exception $e) {
+    //         report($e);
+    //         return response()->json(['error' => 'Webhook handling failed.'], 500);
+    //     }
+
+    //     return response()->json(['status' => 'success']);
+    // }
+
     public function handleWebhook(Request $request)
     {
-        $this->verifyWebhookSignature($request);
-
-        $event = $request->input('event');
-        $data = $request->input('data');
-
         try {
+            // Verify signature first — will throw WebhookVerificationFailedException on invalid/missing header
+            $this->verifyWebhookSignature($request);
+
+            $event = $request->input('event');
+            $data = $request->input('data');
+
             switch ($event) {
                 case 'charge.success':
-                    $transaction = $this->verifyTransaction($data['reference']);
-                    if ($data['plan'] && $transaction->user_id) {
-                        $this->findOrCreateSubscription($data, $transaction);
+                    // Find transaction first — don't call verifyTransaction() blindly because
+                    // verifyTransaction() uses firstOrFail() and will throw if missing.
+                    $reference = $data['reference'] ?? null;
+                    if ($reference) {
+                        $transaction = Transaction::where('reference', $reference)
+                            ->where('gateway', 'paystack')
+                            ->first();
+                        if ($transaction) {
+                            // Safe to call verifyTransaction which will update the transaction.
+                            $transaction = $this->verifyTransaction($reference);
+
+                            // If it's a plan/subscription and the transaction has a billable FK, create subscription
+                            if (!empty($data['plan']) && !empty($transaction->{$this->billableForeignKey()})) {
+                                $this->findOrCreateSubscription($data, $transaction);
+                            }
+                        }
+                        // If transaction not found, acknowledge the webhook (return 200) — nothing to update locally.
                     }
                     break;
-                
+
                 case 'subscription.create':
                     $subscription = $this->findOrCreateSubscription($data, null);
                     event(new SubscriptionStarted($subscription));
@@ -170,7 +238,7 @@ class PaystackDriver extends AbstractDriver implements GatewayContract
                         event(new SubscriptionCancelled($subscription));
                     }
                     break;
-                
+
                 case 'invoice.payment_failed':
                     $subscriptionCode = $data['subscription']['subscription_code'] ?? null;
                     if ($subscriptionCode) {
@@ -183,13 +251,20 @@ class PaystackDriver extends AbstractDriver implements GatewayContract
                     }
                     break;
             }
+
+            return response()->json(['status' => 'success'], 200);
+
+        } catch (\Emeroid\Billing\Exceptions\WebhookVerificationFailedException $e) {
+            // Signature invalid -> 401 (tests expect this)
+            return response()->json(['error' => $e->getMessage()], 401);
+
         } catch (\Exception $e) {
+            // Unexpected error -> 500 (still report)
             report($e);
             return response()->json(['error' => 'Webhook handling failed.'], 500);
         }
-
-        return response()->json(['status' => 'success']);
     }
+
 
     public function cancelSubscription(Subscription $subscription, string $reason = 'Cancelled by user'): Subscription
     {
@@ -271,7 +346,18 @@ class PaystackDriver extends AbstractDriver implements GatewayContract
         ]);
     
         if (!$subscription->exists) {
-            $user = $transaction ? $transaction->user : $this->findBillableByEmail($data['customer']['email']);
+
+            
+            $user = null;
+            if ($transaction) {
+                $user = $this->getBillableFromTransaction($transaction);
+            }
+    
+            if (!$user && isset($data['customer']['email'])) {
+                $user = $this->findBillableByEmail($data['customer']['email']);
+            }
+
+            
             $planCode = $data['plan'] ?? ($data['plan']['plan_code'] ?? null);
             $plan = Plan::where('paystack_plan_id', $planCode)->first();
 
@@ -279,7 +365,7 @@ class PaystackDriver extends AbstractDriver implements GatewayContract
                 throw new \Exception("Could not create subscription. Missing user or plan.");
             }
             
-            $subscription->user_id = $user->id;
+            $subscription->{$this->billableForeignKey()} = $user->id;
             $subscription->plan_id = $plan->id;
             $subscription->status = 'active';
             

@@ -75,12 +75,15 @@ class PaypalDriver extends AbstractDriver implements GatewayContract
                 throw new \Exception('No approve link found in PayPal response.');
             }
 
+            $billableModel = app(config('billing.model'));
+            $billableForeignKey = $billableModel->getForeignKey();
+
             $this->createPendingTransaction(
                 $order['id'], // Use PayPal Order ID as reference
                 $amount,
                 $email,
                 'paypal',
-                $options['user_id'] ?? null,
+                $options[$billableForeignKey] ?? null,
                 $currency
             );
 
@@ -212,12 +215,15 @@ class PaypalDriver extends AbstractDriver implements GatewayContract
                 $plan = Plan::where('paypal_plan_id', $planId)->first();
                 $user = $this->findBillableByEmail($email);
                 
+                $billableModel = app(config('billing.model'));
+                $billableForeignKey = $billableModel->getForeignKey();
+
                 if ($plan && $user) {
                     $subscription = Subscription::firstOrCreate([
                         'gateway_subscription_id' => $subscriptionId,
                         'gateway' => 'paypal',
                     ], [
-                        'user_id' => $user->id,
+                        $billableForeignKey => $user->id,
                         'plan_id' => $plan->id,
                         'status' => 'active',
                         'customer_code' => $resource['subscriber']['payer_id'] ?? null,
