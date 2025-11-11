@@ -326,4 +326,3 @@ If it helps you build your business, please consider supporting its development.
 
 ---
 
-Would you like me to add a **table of contents** and automatic code syntax highlighting for GitHub (for example, by tagging PHP blocks as ` ```php`)?
