@@ -1,52 +1,62 @@
-Laravel Billing Core is a robust, driver-based, multi-gateway billing package for Laravel. It provides a simple, fluent API to manage one-time payments, subscriptions, plan swapping, and dunning logic for your SaaS application.
+Here’s a clean, well-formatted **Markdown** version of your README file:
 
-Stop rebuilding billing logic for every project. This package is the plug-and-play foundation you need.
+---
 
-Features
+# Laravel Billing Core
 
-Driver-Based: Switch gateways just by changing your .env.
+**Laravel Billing Core** is a robust, driver-based, multi-gateway billing package for Laravel.
+It provides a simple, fluent API to manage **one-time payments**, **subscriptions**, **plan swapping**, and **dunning logic** for your SaaS application.
 
-Multi-Gateway: Out-of-the-box support for Paystack and PayPal.
+> Stop rebuilding billing logic for every project — this package is the plug-and-play foundation you need.
 
-Subscription Management: A complete subscription lifecycle (subscribe, cancel, swapPlan).
+---
 
-Grace Periods: Automatically handles "cancel on end of billing period."
+## 🚀 Features
 
-Plan Swapping: Fluent API to upgrade or downgrade users.
+* **Driver-Based:** Switch gateways just by changing your `.env`.
+* **Multi-Gateway:** Out-of-the-box support for **Paystack** and **PayPal**.
+* **Subscription Management:** A complete subscription lifecycle (`subscribe`, `cancel`, `swapPlan`).
+* **Grace Periods:** Automatically handles “cancel on end of billing period”.
+* **Plan Swapping:** Fluent API to upgrade or downgrade users.
+* **Dunning:** Listens for `invoice.payment_failed` webhooks to set `past_due` status.
+* **Event-Based:** Fires events like `SubscriptionStarted`, `SubscriptionCancelled`, etc.
+* **Billable Trait:** A powerful interface you can add to your `User` model.
 
-Dunning: Listens for invoice.payment_failed webhooks to set past_due status.
+---
 
-Event-Based: Fires events like SubscriptionStarted, SubscriptionCancelled, etc., so your app can react.
+## 🧩 Installation
 
-Billable Trait: A powerful interface to add to your User model.
-
-Installation
-
+```bash
 composer require emeroid/laravel-billing-core
+```
 
+### 1. Configuration
 
-1. Configuration
+#### Publish the Config File
 
-Publish the Config File:
-This will create config/billing.php.
-
+```bash
 php artisan vendor:publish --provider="Emeroid\Billing\BillingServiceProvider" --tag="billing-config"
+```
 
+> This creates `config/billing.php`.
 
-Publish the Migrations:
-This will add the plans, subscriptions, and transactions tables.
+#### Publish the Migrations
 
+```bash
 php artisan vendor:publish --provider="Emeroid\Billing\BillingServiceProvider" --tag="billing-migrations"
+```
 
+> This adds the **plans**, **subscriptions**, and **transactions** tables.
 
-Run the Migrations:
+#### Run the Migrations
 
+```bash
 php artisan migrate
+```
 
+#### Update Your `.env` File
 
-Update Your .env File:
-Add your gateway keys and settings.
-
+```dotenv
 # --- BILLING CORE ---
 BILLING_DEFAULT_DRIVER=paystack
 BILLING_MODEL=\App\Models\User
@@ -60,11 +70,11 @@ PAYPAL_CLIENT_ID=...
 PAYPAL_SECRET=...
 PAYPAL_MODE=sandbox
 PAYPAL_WEBHOOK_ID=WH-...
+```
 
+#### Add the `Billable` Trait
 
-Add the Billable Trait:
-Add the Emeroid\Billing\Traits\Billable trait to your User model (or any model you defined in billing.model).
-
+```php
 // app/Models/User.php
 
 use Emeroid\Billing\Traits\Billable;
@@ -75,16 +85,21 @@ class User extends Authenticatable
     use Billable, HasFactory, Notifiable;
     // ...
 }
+```
 
+---
 
-2. Usage: Creating Plans
+## 💳 Usage
 
-Before you can create subscriptions, you must define your plans in the plans table. You can do this in a seeder.
+### 2. Creating Plans
 
+Before creating subscriptions, define your plans in the `plans` table — typically via a seeder:
+
+```php
 // database/seeders/PlanSeeder.php
 
 use Emeroid\Billing\Models\Plan;
-use Illuminate.Database\Seeder;
+use Illuminate\Database\Seeder;
 
 class PlanSeeder extends Seeder
 {
@@ -95,10 +110,10 @@ class PlanSeeder extends Seeder
             'slug' => 'pro-plan',
             'amount' => 500000, // 5000 NGN (in kobo)
             'interval' => 'monthly',
-            'paystack_plan_id' => 'PL_abc123', // ID from your Paystack dashboard
-            'paypal_plan_id' => 'P-xyz456',    // ID from your PayPal dashboard
+            'paystack_plan_id' => 'PL_abc123',
+            'paypal_plan_id' => 'P-xyz456',
         ]);
-        
+
         Plan::create([
             'name' => 'Business Plan',
             'slug' => 'business-plan',
@@ -109,12 +124,13 @@ class PlanSeeder extends Seeder
         ]);
     }
 }
+```
 
+---
 
-3. Usage: One-Time Payments
+### 3. One-Time Payments
 
-Use the Billing facade to initiate a payment.
-
+```php
 use Emeroid\Billing\Facades\Billing;
 use Illuminate\Http\Request;
 
@@ -124,31 +140,27 @@ class PaymentController
     {
         $user = $request->user();
         $amountInKobo = 50000; // 5000 NGN
-        
+
         try {
-            // Initiate the payment
             $payment = Billing::purchase($amountInKobo, $user->email, [
                 'user_id' => $user->id,
                 'currency' => 'NGN',
             ]);
 
-            // $payment = ['authorization_url' => '...', 'reference' => '...']
-
-            // Redirect to Paystack/PayPal
             return redirect()->away($payment['authorization_url']);
-            
+
         } catch (\Emeroid\Billing\Exceptions\PaymentInitializationFailedException $e) {
-            // Handle the error
             return back()->with('error', $e->getMessage());
         }
     }
 }
+```
 
+---
 
-4. Usage: Subscriptions
+### 4. Subscriptions
 
-Subscribing a user is just as easy. You just need the gateway plan ID from your plans table.
-
+```php
 use Emeroid\Billing\Facades\Billing;
 use Emeroid\Billing\Models\Plan;
 use Illuminate\Http\Request;
@@ -159,138 +171,104 @@ class SubscriptionController
     {
         $user = $request->user();
         $plan = Plan::where('slug', 'pro-plan')->firstOrFail();
-        
-        // Get the correct gateway ID based on the default driver
+
         $gatewayPlanId = config('billing.default') === 'paypal'
             ? $plan->paypal_plan_id
             : $plan->paystack_plan_id;
 
         try {
-            // Initiate the subscription
             $subscription = Billing::subscribe(
-                $gatewayPlanId, 
-                $user->email, 
+                $gatewayPlanId,
+                $user->email,
                 [
-                    'amount' => $plan->amount, // Required for Paystack's first charge
+                    'amount' => $plan->amount,
                     'user_id' => $user->id,
                     'currency' => 'NGN',
                 ]
             );
 
-            // $subscription = ['authorization_url' => '...', 'reference' => '...']
-
-            // Redirect to Paystack/PayPal
             return redirect()->away($subscription['authorization_url']);
-            
+
         } catch (\Emeroid\Billing\Exceptions\PaymentInitializationFailedException $e) {
-            // Handle the error
             return back()->with('error', $e->getMessage());
         }
     }
 }
+```
 
+---
 
-5. Handling Callbacks (After Payment)
+### 5. Handling Callbacks
 
-After a user pays, they are redirected back to your site. This package provides a built-in controller to handle this, verify the payment, and redirect to a success/failure page.
+After payment, users are redirected to your site.
+The built-in `CallbackController` handles:
 
-This is handled automatically by the package.
+* Verifying the transaction via `Billing::verifyTransaction(...)`
+* Creating the Subscription record
+* Firing events (`TransactionSuccessful`, `SubscriptionStarted`)
+* Redirecting to success/failure URLs (defined in `config/billing.php`)
 
-The CallbackController will:
+All of this happens **automatically**.
 
-Verify the transaction (Billing::verifyTransaction(...)).
+---
 
-If it's a subscription, create the Subscription record in your database.
+### 6. Handling Webhooks
 
-Fire TransactionSuccessful or SubscriptionStarted events.
+Add these URLs to your gateway dashboards:
 
-Redirect to the success or failure URL set in config/billing.php.
-
-6. Handling Webhooks (Server-to-Server)
-
-Webhooks are critical for keeping your database in sync. The package provides webhook routes:
-
+```
 https://your-app.com/billing-webhooks/paystack
-
 https://your-app.com/billing-webhooks/paypal
+```
 
-You must add these URLs to your Paystack and PayPal dashboards.
+The package automatically handles:
 
-The package automatically listens for:
+* `charge.success` → verifies payments
+* `subscription.create` → creates subscriptions
+* `subscription.disable` → triggers `SubscriptionCancelled`
+* Dunning events:
 
-charge.success: To verify payments.
+  * `invoice.payment_failed` (Paystack)
+  * `BILLING.SUBSCRIPTION.PAYMENT.FAILED` (PayPal)
 
-subscription.create: To create subscriptions.
+---
 
-subscription.disable: To trigger SubscriptionCancelled.
+### 7. The `Billable` Trait API
 
-Dunning: invoice.payment_failed (Paystack) or BILLING.SUBSCRIPTION.PAYMENT.FAILED (PayPal) to set the subscription status to past_due.
-
-7. The Billable Trait API
-
-This is how you will manage users in your application. All methods are available on your User model.
-
+```php
 $user = auth()->user();
 
-// --- STATUS CHECKS ---
+// STATUS CHECKS
+$user->isSubscribed();
+$user->onGracePeriod();
+$user->hasActiveSubscription();
+$user->isSubscribedTo('pro-plan');
+$user->isPastDue();
 
-// Check if a user has an 'active' subscription
-if ($user->isSubscribed()) {
-    // ...
-}
+// MANAGEMENT
+$subscription = $user->getSubscription('SUB_abc');
 
-// Check if a user has cancelled but their period is still active
-if ($user->onGracePeriod()) {
-    // ...
-}
-
-// **This is the most common check you will use:**
-// Check if user should have access (either active or on grace period)
-if ($user->hasActiveSubscription()) {
-    // Show them paid features
-}
-
-// Check if user is on a *specific* plan
-if ($user->isSubscribedTo('pro-plan')) {
-    // Show them "Pro" features
-}
-
-// Check if a payment has failed
-if ($user->isPastDue()) {
-    // Show a banner: "Please update your payment method."
-}
-
-// --- MANAGEMENT ---
-
-// Get a specific subscription
-$subscription = $user->getSubscription('SUB_abc'); // Use the Gateway's Subscription ID
-
-// Cancel an active subscription (with grace period)
-if ($subscription) {
-    // This automatically finds the end of their billing period
-    // and cancels the sub, but keeps their access until that date.
-    $user->cancelSubscription($subscription->gateway_subscription_id);
-}
-
-// Swap a plan
-// This handles proration and gateway API calls
-$user->swapPlan($subscription->gateway_subscription_id, 'business-plan'); // Use the new plan's slug
-
-// Sync subscription status from the gateway
+$user->cancelSubscription($subscription->gateway_subscription_id);
+$user->swapPlan($subscription->gateway_subscription_id, 'business-plan');
 $user->syncSubscription($subscription->gateway_subscription_id);
+```
 
+---
 
-8. Events
+### 8. Events
 
-Your app can react to billing events by listening for them in your EventServiceProvider.
+Listen for billing events in your `EventServiceProvider`:
 
+```php
 // app/Providers/EventServiceProvider.php
 
-use Emeroid\Billing\Events\TransactionSuccessful;
-use Emeroid\Billing\Events\SubscriptionStarted;
-use Emeroid\Billing\Events\SubscriptionCancelled;
-use Emeroid\Billing\Events\SubscriptionPlanSwapped;
-use Emeroid\Billing\Events\SubscriptionPaymentFailed;
+use Emeroid\Billing\Events\{
+    TransactionSuccessful,
+    SubscriptionStarted,
+    SubscriptionCancelled,
+    SubscriptionPlanSwapped,
+    SubscriptionPaymentFailed
+};
 
 protected $listen = [
     TransactionSuccessful::class => [
@@ -310,29 +288,45 @@ protected $listen = [
         'App\Listeners\SendDunningEmail',
     ],
 ];
+```
 
+---
 
-Testing
+## 🧪 Testing
 
-You can run the package's built-in test suite:
-
+```bash
 composer test
+```
 
+---
 
-Contributing
+## 🤝 Contributing
 
-Please see CONTRIBUTING.md for details.
+Please see **CONTRIBUTING.md** for details.
 
-Security
+---
 
-If you discover any security-related issues, please email threalyongbug@gmail.com instead of using the issue tracker.
+## 🔒 Security
 
-License
+If you discover any security-related issues, please email
+📧 **[threalyongbug@gmail.com](mailto:threalyongbug@gmail.com)** instead of using the issue tracker.
 
-The MIT License (MIT). Please see License File for more information.
+---
 
-❤️ Sponsorship
+## 📄 License
 
-This project is free and open-source. If it helps you build your business, please consider supporting its development.
+Licensed under the **MIT License (MIT)**.
+See the [License File](LICENSE) for more information.
 
-Sponsor @emeroid on GitHub
+---
+
+## ❤️ Sponsorship
+
+This project is free and open-source.
+If it helps you build your business, please consider supporting its development.
+
+**Sponsor [@emeroid](https://github.com/emeroid)** on GitHub.
+
+---
+
+Would you like me to add a **table of contents** and automatic code syntax highlighting for GitHub (for example, by tagging PHP blocks as ` ```php`)?
